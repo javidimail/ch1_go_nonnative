@@ -1,0 +1,127 @@
+*CHARMM script to read pdb file
+*
+
+set k 0
+
+bomlev -1
+open unit 1 read form name ch1.rtf
+read rtf card unit 1
+close unit 1
+
+open unit 1 read form name ch1.prm 
+read param card unit 1
+close unit 1
+
+
+prnlev 5
+wrnlev 2
+bomlev -2
+
+READ SEQUENCE CARD
+* ClpY
+*
+93   
+P1 P2 P3 P4 P5 P6 P7 P8 P9 P10 P11 P12 P13 P14 P15
+P16 P17 P18 P19 P20 P21 P22 P23 P24 P25 P26 P27 P28 P29 P30 P31
+P32 P33 P34 P35 P36 P37 P38 P39 P40 P41 P42 P43 P44 P45 P46 P47
+P48 P49 P50 P51 P52 P53 P54 P55 P56 P57 P58 P59 P60 P61 P62 P63
+P64 P65 P66 P67 P68 P69 P70 P71 P72 P73 P74 P75 P76 P77 P78 P79
+P80 P81 P82 P83 P84 P85 P86 P87 P88 P89 P90 P91 P92 P93
+
+generate PRTL   setup
+
+open unit 11 read card name ch1_mini_ca_123.pdb 
+read coor pdb offset -2 unit 11 sele all end
+
+! rename command is not needed here, there are only CA atom types
+!rename atom cd1 select resname ile .and. type cd end
+!rename atom oxt select type ot1 end
+!rename atom o select ires ?nres .and. type ot2 end
+
+close unit 11
+
+!-------------------------------------------------------------------------
+print param
+
+open unit 1 write card name ch1_init.cor
+write coor unit 1 card
+
+
+! minimization is not very efficient here (although computational cost is small)
+! 	as Langevin results in rapid minimization
+! the ch1_mini_ca_123 file already includes the modeled and minimized missing loop
+!cons harm force 10.0 sele type ca end
+!mini sd nstep 200
+!mini abnr nstep 2000
+
+! native coordinates should be stored in comparison set
+!	this command should follow immediately after loading native coor
+coor copy comp
+
+!cons harm clear
+
+!mini sd nstep 200
+!mini abnr nstep 2000
+!coor orie rms
+
+! psf does not change after minimization, only coordinates do
+!open unit 1 write card name ch1_mini.psf
+!write psf unit 1 card
+
+!open unit 1 write card name ch1_mini.cor
+!write coor unit 1 card
+
+!coor copy comp 
+
+scalar fbeta set 1
+set nsteps 1000000
+set timestep 0.015
+set filename eq
+set ntraj 0
+
+! the use of the block command is not clear here
+!  are you trying to rescale all interactions
+!  I would recommend removing these lines unless they 
+!	serve a well defined purpose
+!block 1
+!call 1 sele all end
+
+!coeff 1  1 @scale
+
+!end
+
+set iseed @iseed
+
+open unit 31 write form name ch1_@filename.res
+open unit 33 write unform name ch1_@filename.dcd
+
+! need the eten subroutine which incorporates the modified LJ potential 
+eten on
+
+! Do Langevin dyanmics
+dyna leap langevin strt nstep @nsteps timestep @timestep -
+   iprfrq 10000 ieqfrq 0 ntrfrq 0 echeck 9999 -
+   iunwri 31 iuncrd 33 iunvel -1 -
+   ihtfrq 0 teminc 0 nprint 10000 nsavc 1000 nsavv 0 ihbfrq 0 inbfrq -1  -
+   ilbfrq 100 rbuffer 0.0 tbath @temp -
+   cutnb 14. ctofnb 12.0  ctonnb 10.  wmin 1.5 atom cdie -
+   firstt @temp.0 finalt @temp noewald iseed @iseed -
+   iasors 0 iasvel 1 iscvel 0 ichecw 0 twindh 0.0 twindl 0.0
+
+open unit 1 write card name ch1_@filename.cor
+write coor unit 1 card
+
+! only CA atoms exist, the atom selection is redundant
+coor orient rms select type CA end
+set carms = ?rms
+
+! the write title command works only with an opened output file
+! this is not needed here as only one result is printed
+! for future reference: data output should only include tab separated numbers
+! for easy plotting; header or text lines should include commenting symbols
+! eg "#" for xmgrace 
+!write title name rmsd.dat
+!* CA rms = @carms
+!*
+!----------------------------------------------------------------
+stop
